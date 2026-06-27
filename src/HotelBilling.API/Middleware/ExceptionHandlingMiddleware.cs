@@ -2,26 +2,38 @@ using System.Net;
 using System.Text.Json;
 using HotelBilling.Application.Common.Exceptions;
 using HotelBilling.Application.Common.Models;
-using Serilog;
+
 namespace HotelBilling.API.Middleware;
 
-public class ExceptionHandlingMiddleware(RequestDelegate next)
+public class ExceptionHandlingMiddleware(
+    RequestDelegate next,
+    ILogger<ExceptionHandlingMiddleware> logger)
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
-    public async Task InvokeAsync(HttpContext ctx)
+    public async Task InvokeAsync(HttpContext context)
     {
         try
         {
-            await next(ctx);
+            await next(context);
         }
         catch (Exception ex)
         {
-            await HandleExceptionAsync(ctx, ex);
+            if (context.Response.HasStarted)
+            {
+                logger.LogError(
+                    ex,
+                    "An exception occurred after the response started. TraceId: {TraceId}",
+                    context.TraceIdentifier);
+
+                throw;
+            }
+
+            await HandleExceptionAsync(context, ex);
         }
     }
 
-    private static async Task HandleExceptionAsync(HttpContext ctx, Exception exception)
+    private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
         var (statusCode, message, errors) = exception switch
         {
@@ -34,14 +46,29 @@ public class ExceptionHandlingMiddleware(RequestDelegate next)
         };
 
         if (statusCode == HttpStatusCode.InternalServerError)
-            Log.Error(exception, "Unhandled exception: {Message}", exception.Message);
+        {
+            logger.LogError(
+                exception,
+                "Unhandled exception for {Method} {Path}. TraceId: {TraceId}",
+                context.Request.Method,
+                context.Request.Path,
+                context.TraceIdentifier);
+        }
         else
-            Log.Warning("Handled exception [{StatusCode}]: {Message}", (int)statusCode, exception.Message);
+        {
+            logger.LogWarning(
+                exception,
+                "Handled exception with status code {StatusCode} for {Method} {Path}. TraceId: {TraceId}",
+                (int)statusCode,
+                context.Request.Method,
+                context.Request.Path,
+                context.TraceIdentifier);
+        }
 
-        ctx.Response.ContentType = "application/json";
-        ctx.Response.StatusCode  = (int)statusCode;
+        context.Response.ContentType = "application/json";
+        context.Response.StatusCode = (int)statusCode;
 
         var response = ApiResponse<object>.Fail(message, errors);
-        await ctx.Response.WriteAsync(JsonSerializer.Serialize(response, JsonOptions));
+        await context.Response.WriteAsync(JsonSerializer.Serialize(response, JsonOptions), context.RequestAborted);
     }
 }

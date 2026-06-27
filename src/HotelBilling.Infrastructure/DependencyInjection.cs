@@ -8,12 +8,16 @@ using HotelBilling.Infrastructure.Authentication;
 using HotelBilling.Infrastructure.Persistence.Repositories;
 using HotelBilling.Infrastructure.Services;
 using Microsoft.AspNetCore.Http;
+
 namespace HotelBilling.Infrastructure;
 
 public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration config)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(config);
+
         // Dapper
         services.AddSingleton<DapperContext>();
 
@@ -33,9 +37,14 @@ public static class DependencyInjection
         services.AddScoped<ICurrentUserService,     CurrentUserService>();
 
         // JWT Authentication
-        var jwtKey     = config["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key is required.");
-        var jwtIssuer   = config["Jwt:Issuer"];
-        var jwtAudience = config["Jwt:Audience"];
+        var jwtKey = GetRequiredSetting(config, "Jwt:Key");
+        var jwtIssuer = GetRequiredSetting(config, "Jwt:Issuer");
+        var jwtAudience = GetRequiredSetting(config, "Jwt:Audience");
+
+        if (Encoding.UTF8.GetByteCount(jwtKey) < 32)
+        {
+            throw new InvalidOperationException("Jwt:Key must be at least 32 bytes long.");
+        }
 
         services.AddAuthentication(options =>
         {
@@ -53,8 +62,9 @@ public static class DependencyInjection
                 ValidateAudience         = true,
                 ValidAudience            = jwtAudience,
                 ValidateLifetime         = true,
-                ClockSkew                = TimeSpan.Zero,
+                ClockSkew                = TimeSpan.Zero
             };
+
             options.Events = new JwtBearerEvents
             {
                 OnAuthenticationFailed = ctx =>
@@ -75,5 +85,17 @@ public static class DependencyInjection
         });
 
         return services;
+    }
+
+    private static string GetRequiredSetting(IConfiguration config, string key)
+    {
+        var value = config[key];
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException($"{key} is required.");
+        }
+
+        return value;
     }
 }

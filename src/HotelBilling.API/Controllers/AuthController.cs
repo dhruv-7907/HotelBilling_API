@@ -1,11 +1,13 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using HotelBilling.Application.Common.Exceptions;
 using HotelBilling.Application.Common.Interfaces;
 using HotelBilling.Application.Features.Auth.Commands;
+
 namespace HotelBilling.API.Controllers;
 
-/// <summary>Authentication — login, register, token refresh, logout</summary>
+/// <summary>Authentication - login, register, token refresh, logout</summary>
 public class AuthController(IMediator mediator, ICurrentUserService currentUser) : BaseController(mediator)
 {
     /// <summary>Login with email and password. Returns JWT access token + refresh token.</summary>
@@ -41,17 +43,22 @@ public class AuthController(IMediator mediator, ICurrentUserService currentUser)
     [ProducesResponseType(401)]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordCommand command, CancellationToken ct)
     {
-        var cmd = command with { UserId = currentUser.UserId ?? 0 };
+        var userId = currentUser.UserId
+            ?? throw new UnauthorizedException("Authenticated user id claim is missing.");
+
+        var cmd = command with { UserId = userId };
         return OkResult(await Mediator.Send(cmd, ct), "Password changed successfully");
     }
 
-    /// <summary>Logout — invalidates the refresh token.</summary>
+    /// <summary>Logout - invalidates the refresh token.</summary>
     [HttpPost("logout")]
     [Authorize]
     [ProducesResponseType(200)]
     public async Task<IActionResult> Logout(CancellationToken ct)
     {
-        var userId = currentUser.UserId ?? 0;
+        var userId = currentUser.UserId
+            ?? throw new UnauthorizedException("Authenticated user id claim is missing.");
+
         return OkResult(await Mediator.Send(new LogoutCommand(userId), ct), "Logged out");
     }
 

@@ -1,39 +1,54 @@
 using Microsoft.OpenApi.Models;
+
 namespace HotelBilling.API.Extensions;
 
 public static class SwaggerExtensions
 {
+    private const string ApiVersion = "v1";
+    private const string BearerScheme = "Bearer";
+
     public static IServiceCollection AddSwaggerWithJwt(this IServiceCollection services)
     {
-        services.AddSwaggerGen(c =>
+        services.AddSwaggerGen(options =>
         {
-            c.SwaggerDoc("v1", new OpenApiInfo
+            options.SwaggerDoc(ApiVersion, new OpenApiInfo
             {
-                Title       = "Hotel Billing Pro API",
-                Version     = "v1",
-                Description = "Full hotel billing & management REST API — Clean Architecture + CQRS + Dapper",
-                Contact     = new OpenApiContact { Name = "HotelBill Team", Email = "api@hotelbilling.com" }
+                Title = "Hotel Billing Pro API",
+                Version = ApiVersion,
+                Description = "Full hotel billing & management REST API - Clean Architecture + CQRS + Dapper",
+                Contact = new OpenApiContact
+                {
+                    Name = "HotelBill Team",
+                    Email = "api@hotelbilling.com"
+                }
             });
 
-            // JWT bearer security definition
-            c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+            options.AddSecurityDefinition(BearerScheme, new OpenApiSecurityScheme
             {
-                Name         = "Authorization",
-                Type         = SecuritySchemeType.ApiKey,
-                Scheme       = "Bearer",
+                Name = "Authorization",
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer",
                 BearerFormat = "JWT",
-                In           = ParameterLocation.Header,
-                Description  = "Enter: Bearer {your JWT token}",
+                In = ParameterLocation.Header,
+                Description = "Enter a valid JWT bearer token."
             });
 
-            c.AddSecurityRequirement(new OpenApiSecurityRequirement
+            options.AddSecurityRequirement(new OpenApiSecurityRequirement
             {
                 {
-                    new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" } },
+                    new OpenApiSecurityScheme
+                    {
+                        Reference = new OpenApiReference
+                        {
+                            Type = ReferenceType.SecurityScheme,
+                            Id = BearerScheme
+                        }
+                    },
                     Array.Empty<string>()
                 }
             });
         });
+
         return services;
     }
 }

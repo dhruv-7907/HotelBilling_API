@@ -1,24 +1,41 @@
-using Serilog;
 using System.Diagnostics;
+
 namespace HotelBilling.API.Middleware;
 
-public class RequestLoggingMiddleware(RequestDelegate next)
+public class RequestLoggingMiddleware(
+    RequestDelegate next,
+    ILogger<RequestLoggingMiddleware> logger)
 {
-    public async Task InvokeAsync(HttpContext ctx)
+    public async Task InvokeAsync(HttpContext context)
     {
-        var sw = Stopwatch.StartNew();
+        var stopwatch = Stopwatch.StartNew();
+
         try
         {
-            await next(ctx);
-            sw.Stop();
-            Log.Information("{Method} {Path} responded {StatusCode} in {ElapsedMs}ms",
-                ctx.Request.Method, ctx.Request.Path, ctx.Response.StatusCode, sw.ElapsedMilliseconds);
+            await next(context);
+
+            stopwatch.Stop();
+
+            logger.LogInformation(
+                "{Method} {Path} responded {StatusCode} in {ElapsedMs}ms. TraceId: {TraceId}",
+                context.Request.Method,
+                context.Request.Path,
+                context.Response.StatusCode,
+                stopwatch.ElapsedMilliseconds,
+                context.TraceIdentifier);
         }
-        catch
+        catch (Exception ex)
         {
-            sw.Stop();
-            Log.Error("{Method} {Path} failed after {ElapsedMs}ms",
-                ctx.Request.Method, ctx.Request.Path, sw.ElapsedMilliseconds);
+            stopwatch.Stop();
+
+            logger.LogError(
+                ex,
+                "{Method} {Path} failed after {ElapsedMs}ms. TraceId: {TraceId}",
+                context.Request.Method,
+                context.Request.Path,
+                stopwatch.ElapsedMilliseconds,
+                context.TraceIdentifier);
+
             throw;
         }
     }

@@ -1,23 +1,41 @@
+using System.Diagnostics;
 using MediatR;
 using Microsoft.Extensions.Logging;
+
 namespace HotelBilling.Application.Common.Behaviors;
 
 public class LoggingBehavior<TRequest, TResponse>(ILogger<LoggingBehavior<TRequest, TResponse>> logger)
     : IPipelineBehavior<TRequest, TResponse> where TRequest : notnull
 {
-    public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken ct)
+    public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
     {
-        var name = typeof(TRequest).Name;
-        logger.LogInformation("Handling {RequestName}", name);
+        var requestName = typeof(TRequest).Name;
+        var stopwatch = Stopwatch.StartNew();
+
+        logger.LogInformation("Handling {RequestName}", requestName);
+
         try
         {
             var response = await next();
-            logger.LogInformation("Handled {RequestName} successfully", name);
+            stopwatch.Stop();
+
+            logger.LogInformation(
+                "Handled {RequestName} successfully in {ElapsedMs}ms",
+                requestName,
+                stopwatch.ElapsedMilliseconds);
+
             return response;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error handling {RequestName}", name);
+            stopwatch.Stop();
+
+            logger.LogError(
+                ex,
+                "Error handling {RequestName} after {ElapsedMs}ms",
+                requestName,
+                stopwatch.ElapsedMilliseconds);
+
             throw;
         }
     }
