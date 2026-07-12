@@ -33,6 +33,8 @@ public static class DependencyInjection
 
         // Services
         services.AddScoped<IJwtService,             JwtService>();
+        services.AddScoped<ITwoFactorService,       TwoFactorService>();
+        services.AddScoped<IQrCodeService,         QrCodeService>();
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUserService,     CurrentUserService>();
 

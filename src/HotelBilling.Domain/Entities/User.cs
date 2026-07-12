@@ -12,4 +12,10 @@ public class User : BaseEntity
     public string? RefreshToken           { get; set; }
     public DateTime? RefreshTokenExpiry   { get; set; }
     public DateTime? LastLoginAt          { get; set; }
+
+    public bool TwoFactorEnabled          { get; set; }
+    public string? TwoFactorSecret        { get; set; }
+    public DateTime? TwoFactorVerifiedAt  { get; set; }
+    public int FailedOtpAttempts          { get; set; }
+    public DateTime? OtpLockedUntil       { get; set; }
 }

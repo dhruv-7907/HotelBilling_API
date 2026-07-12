@@ -7,7 +7,7 @@ namespace HotelBilling.Application.Features.Auth.Commands;
 
 public record LoginCommand(string Email, string Password) : IRequest<AuthResponse>;
 
-public record AuthResponse(string AccessToken, string RefreshToken, string FullName, string Email, string Role, int UserId, DateTime ExpiresAt);
+public record AuthResponse(string? AccessToken, string? RefreshToken, string FullName, string Email, string Role, int UserId, DateTime? ExpiresAt, bool TwoFactorRequired = false);
 
 public class LoginCommandValidator : AbstractValidator<LoginCommand>
 {
@@ -31,6 +31,21 @@ public class LoginCommandHandler(IUserRepository users, IJwtService jwt) : IRequ
         if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             throw new UnauthorizedException("Invalid email or password.");
 
+        // If Two-Factor Authentication is enabled, bypass JWT generation and indicate 2FA is required.
+        if (user.TwoFactorEnabled)
+        {
+            return new AuthResponse(
+                AccessToken: null,
+                RefreshToken: null,
+                FullName: user.FullName,
+                Email: user.Email,
+                Role: user.Role.ToString(),
+                UserId: user.Id,
+                ExpiresAt: null,
+                TwoFactorRequired: true
+            );
+        }
+
         var accessToken  = jwt.GenerateAccessToken(user);
         var refreshToken = jwt.GenerateRefreshToken();
         var expiry       = DateTime.UtcNow.AddDays(7);
@@ -38,6 +53,15 @@ public class LoginCommandHandler(IUserRepository users, IJwtService jwt) : IRequ
         await users.UpdateRefreshTokenAsync(user.Id, refreshToken, expiry, ct);
         await users.UpdateLastLoginAsync(user.Id, ct);
 
-        return new AuthResponse(accessToken, refreshToken, user.FullName, user.Email, user.Role.ToString(), user.Id, DateTime.UtcNow.AddMinutes(60));
+        return new AuthResponse(
+            AccessToken: accessToken,
+            RefreshToken: refreshToken,
+            FullName: user.FullName,
+            Email: user.Email,
+            Role: user.Role.ToString(),
+            UserId: user.Id,
+            ExpiresAt: DateTime.UtcNow.AddMinutes(60),
+            TwoFactorRequired: false
+        );
     }
 }
